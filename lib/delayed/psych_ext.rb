@@ -108,16 +108,17 @@ module Psych
           id = payload["attributes"][klass.primary_key]
           begin
             klass.unscoped.find(id)
-          rescue ActiveRecord::RecordNotFound
-            raise Delayed::DeserializationError
+          rescue ActiveRecord::RecordNotFound => error
+            raise Delayed::DeserializationError, "ActiveRecord::RecordNotFound, class: #{klass}, primary key: #{id} (#{error.message})"
           end
         when /^!ruby\/Mongoid:(.+)$/
           klass = resolve_class($1)
           payload = Hash[*object.children.map { |c| accept c }]
+          id = payload['attributes']['_id']
           begin
-            klass.find(payload["attributes"]["_id"])
-          rescue Mongoid::Errors::DocumentNotFound
-            raise Delayed::DeserializationError
+            klass.find(id)
+          rescue Mongoid::Errors::DocumentNotFound => error
+            raise Delayed::DeserializationError, "Mongoid::Errors::DocumentNotFound, class: #{klass}, primary key: #{id} (#{error.message})"
           end
         when /^!ruby\/DataMapper:(.+)$/
           klass = resolve_class($1)
@@ -126,8 +127,8 @@ module Psych
             primary_keys = klass.properties.select { |p| p.key? }
             key_names = primary_keys.map { |p| p.name.to_s }
             klass.get!(*key_names.map { |k| payload["attributes"][k] })
-          rescue DataMapper::ObjectNotFoundError
-            raise Delayed::DeserializationError
+          rescue DataMapper::ObjectNotFoundError => error
+            raise Delayed::DeserializationError, "DataMapper::ObjectNotFoundError, class: #{klass} (#{error.message})"
           end
         else
           visit_Psych_Nodes_Mapping_without_class(object)
